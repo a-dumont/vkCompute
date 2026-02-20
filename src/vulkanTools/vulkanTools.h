@@ -211,12 +211,15 @@ class ComputePipeline
 		VkPipeline getPipeline();
 		void setLayoutDescriptors(uint32_t n, VkDescriptorSetLayout* descriptors);
 		VkPipelineLayout getLayout();
+		LogicalDevice* getLogicalDevice();
 
 	private:
 		LogicalDevice* logicalDevice;
 		VulkanBase* vkBase;
 		const char* shaderFile;
 		void cleanup();
+
+		bool isCreated = false;
 
 		VkPipelineLayout layout;
 		VkPipeline pipeline;

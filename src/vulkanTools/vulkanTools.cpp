@@ -622,8 +622,12 @@ ComputePipeline::~ComputePipeline()
 
 void ComputePipeline::cleanup()
 {
-	vkDestroyPipeline(logicalDevice->getLogicalDevice(), pipeline, nullptr);
-	vkDestroyPipelineLayout(logicalDevice->getLogicalDevice(), layout, nullptr);
+	if(isCreated == true)
+	{
+		vkDestroyPipeline(logicalDevice->getLogicalDevice(), pipeline, nullptr);
+		vkDestroyPipelineLayout(logicalDevice->getLogicalDevice(), layout, nullptr);
+		isCreated = false;
+	}
 }
 
 void ComputePipeline::recreatePipeline()
@@ -664,6 +668,7 @@ void ComputePipeline::createPipeline()
 
     vkDestroyShaderModule(logicalDevice->getLogicalDevice(), shaderModule, nullptr);
 	free(std::get<0>(shaderBuffer));
+	isCreated = true;
 }
 
 std::tuple<char*,uint32_t> ComputePipeline::readShaderFile(const char* fileName)
@@ -712,6 +717,7 @@ void ComputePipeline::setLayoutDescriptors(uint32_t n, VkDescriptorSetLayout* de
 
 VkPipeline ComputePipeline::getPipeline(){return pipeline;}
 VkPipelineLayout ComputePipeline::getLayout(){return layout;}
+LogicalDevice* ComputePipeline::getLogicalDevice(){return logicalDevice;}
 
 
 

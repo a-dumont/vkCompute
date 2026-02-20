@@ -1,17 +1,11 @@
 #include "vkComputer.h"
-#include <cmath>
-#include <cstring>
 
-Computer::Computer(vkTools::VulkanBase* base, vkTools::LogicalDevice* device) :
-		pipeline(device, "../bin/Shaders/base.spv")
+Computer::Computer(vkTools::ComputePipeline* pipelineIn)
 {
-	vkBase = base;
-	logicalDevice = device;
+	pipeline = pipelineIn;
+	logicalDevice = pipeline->getLogicalDevice();
+	vkBase = logicalDevice->getVulkanBase();
 
-	createInOutBuffers();
-
-	pipeline.setLayoutDescriptors(1,&descriptorSetLayout);
-	pipeline.createPipeline();
 	createCommandBuffer();
 	createSyncObjects();
 }
@@ -19,57 +13,17 @@ Computer::Computer(vkTools::VulkanBase* base, vkTools::LogicalDevice* device) :
 Computer::~Computer()
 {
 	destroySyncObjects();
-
-	// Chunks staging buffer
-	vkUnmapMemory(logicalDevice->getLogicalDevice(), inputMemory);
-	vkDestroyBuffer(logicalDevice->getLogicalDevice(), inputBuffers, nullptr);
-	vkFreeMemory(logicalDevice->getLogicalDevice(), inputMemory, nullptr);
-	
-	vkUnmapMemory(logicalDevice->getLogicalDevice(), outputMemory);
-	vkDestroyBuffer(logicalDevice->getLogicalDevice(), outputBuffer, nullptr);
-	vkFreeMemory(logicalDevice->getLogicalDevice(), outputMemory, nullptr);
-
 	vkDestroyDescriptorPool(logicalDevice->getLogicalDevice(), inOutDescriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice->getLogicalDevice(), descriptorSetLayout, nullptr);
 }
 
-void Computer::loadData(uint32_t* in1, uint32_t* in2)
-{
-	for(uint32_t i=0;i<256;i++)
-	{
-		((uint32_t*) pInputMemory)[i] = in1[i];
-		((uint32_t*) pInputMemory)[i+dataLength] = in2[i];
-	}
-}
-
-void Computer::readData(uint32_t* out)
-{
-	for(uint32_t i=0;i<dataLength;i++)
-	{
-		out[i] = ((uint32_t*)pOutputMemory)[i];
-	}
-}
-
 void Computer::createSyncObjects()
 {
-	
-
-	VkSemaphoreCreateInfo semaphoreInfo{};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	
 	VkFenceCreateInfo fenceInfo{};
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
 	VkResult r;
-	r = vkCreateSemaphore(logicalDevice->getLogicalDevice(), 
-					&semaphoreInfo, nullptr, &computeDoneSemaphore);
-	if(r != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create semaphore!");
-	}
-
 	r = vkCreateFence(logicalDevice->getLogicalDevice(), 
 					&fenceInfo, nullptr, &computeFence);
 	if(r != VK_SUCCESS)
@@ -80,7 +34,6 @@ void Computer::createSyncObjects()
 
 void Computer::destroySyncObjects()
 {
-	vkDestroySemaphore(logicalDevice->getLogicalDevice(),computeDoneSemaphore, nullptr);
     vkDestroyFence(logicalDevice->getLogicalDevice(), computeFence, nullptr);
 }
 
@@ -93,7 +46,7 @@ void Computer::destroySyncObjects()
 //           |____/|_|  \__,_| \_/\_/   |_|  |_|  \__,_|_| |_| |_|\___|         //
 //////////////////////////////////////////////////////////////////////////////////
 
-void Computer::recordCommandBuffer(VkCommandBuffer buffer)
+void Computer::recordCommandBuffer(VkCommandBuffer buffer, uint32_t dispatchNumber)
 {
 	
 	VkCommandBufferBeginInfo beginInfo{};
@@ -109,12 +62,12 @@ void Computer::recordCommandBuffer(VkCommandBuffer buffer)
 	}
 
 	// Triangles
-	vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.getPipeline());
+	vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getPipeline());
 	vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, 
-					pipeline.getLayout(), 0, 1, 
+					pipeline->getLayout(), 0, 1, 
 					&descriptorSet, 0, nullptr);
 
-	vkCmdDispatch(buffer, dataLength/256, 1, 1);	
+	vkCmdDispatch(buffer, dispatchNumber, 1, 1);	
 
 	r = vkEndCommandBuffer(buffer);
 	if (r != VK_SUCCESS) 
@@ -123,13 +76,13 @@ void Computer::recordCommandBuffer(VkCommandBuffer buffer)
 	}
 }
 
-void Computer::compute()
+void Computer::compute(uint32_t dispatchNumber)
 {
 	vkWaitForFences(logicalDevice->getLogicalDevice(), 1, &computeFence, VK_TRUE, UINT64_MAX);
 	vkResetFences(logicalDevice->getLogicalDevice(), 1, &computeFence);
 
 	vkResetCommandBuffer(commandBuffer, 0);
-	recordCommandBuffer(commandBuffer);
+	recordCommandBuffer(commandBuffer, dispatchNumber);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -137,8 +90,7 @@ void Computer::compute()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 	
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &computeDoneSemaphore;
+	submitInfo.signalSemaphoreCount = 0;
 	
 	VkBool32 r;
 	r = vkQueueSubmit(logicalDevice->getComputeQueue(), 1, &submitInfo, 
@@ -149,8 +101,6 @@ void Computer::compute()
 	}
 
 	vkWaitForFences(logicalDevice->getLogicalDevice(), 1, &computeFence, VK_TRUE, UINT64_MAX);
-	//vkResetFences(logicalDevice->getLogicalDevice(), 1, &computeFence);
-	//vkResetCommandBuffer(commandBuffer, 0);
 }
 
 
@@ -314,32 +264,29 @@ void Computer::endCommand(VkCommandBuffer commandBuffer)
 					logicalDevice->getCommandPool(), 1, &commandBuffer);
 }
 
-void Computer::createInOutBuffers()
+void Computer::fillBaseWriteDescriptorSet(uint32_t n, VkWriteDescriptorSet* writeDescriptorSet)
 {
-	// In
-	createBuffer(8*dataLength, 
-					VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
-					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | 
-					VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-					inputBuffers, inputMemory);
+	// SSBO
+	for(uint32_t i=0; i<n;i++)
+	{
+		writeDescriptorSet[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet[i].dstSet = descriptorSet;
+		writeDescriptorSet[i].dstBinding = i;
+		writeDescriptorSet[i].dstArrayElement = 0;
+		writeDescriptorSet[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		writeDescriptorSet[i].descriptorCount = 1;
+		//writeDescriptorSet[i].pBufferInfo = &bufferInfoInput1;
+		writeDescriptorSet[i].pImageInfo = nullptr;
+		writeDescriptorSet[i].pTexelBufferView = nullptr;
+		writeDescriptorSet[i].pNext = nullptr;
+	}
+}
 
-	vkMapMemory(logicalDevice->getLogicalDevice(), 
-					inputMemory, 0, 
-					8*dataLength, 0, &pInputMemory);
-
-	// Out
-	createBuffer(4*dataLength, 
-					VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
-					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | 
-					VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-					outputBuffer, outputMemory);
-
-	vkMapMemory(logicalDevice->getLogicalDevice(), 
-					outputMemory, 0, 
-					4*dataLength, 0, &pOutputMemory);
-
+void Computer::createDescriptorSetLayout(uint32_t N)
+{
+	
 	VkDescriptorSetLayoutBinding* bindings;
-	bindings = (VkDescriptorSetLayoutBinding*) malloc(3*sizeof(VkDescriptorSetLayoutBinding));
+	bindings = (VkDescriptorSetLayoutBinding*) malloc(N*sizeof(VkDescriptorSetLayoutBinding));
 	
 	// Input 1
     bindings[0].binding = 0;
@@ -361,10 +308,17 @@ void Computer::createInOutBuffers()
     bindings[2].descriptorCount = 1;
 	bindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 	bindings[2].pImmutableSamplers = nullptr;
-	
+
+	if(descriptorSetLayoutInit == true)
+	{
+		vkDestroyDescriptorPool(logicalDevice->getLogicalDevice(), inOutDescriptorPool, nullptr);
+		vkDestroyDescriptorSetLayout(logicalDevice->getLogicalDevice(),descriptorSetLayout, nullptr);
+		descriptorSetLayoutInit = false;
+	}
+
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = 3;
+	layoutInfo.bindingCount = N;
 	layoutInfo.pBindings = bindings;
 
 	VkResult r;
@@ -374,20 +328,16 @@ void Computer::createInOutBuffers()
 	{
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
+	descriptorSetLayoutInit = true;
 
-	VkDescriptorPoolSize* poolSizes;
-	poolSizes = (VkDescriptorPoolSize*) malloc(3*sizeof(VkDescriptorPoolSize));
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	poolSizes[0].descriptorCount = 1;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	poolSizes[1].descriptorCount = 1;
-	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	poolSizes[2].descriptorCount = 1;
+	VkDescriptorPoolSize poolSize;
+	poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSize.descriptorCount = N;
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = 3;
-	poolInfo.pPoolSizes = poolSizes;
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
 	poolInfo.maxSets = 1;
 
 	r = vkCreateDescriptorPool(logicalDevice->getLogicalDevice(), 
@@ -397,6 +347,9 @@ void Computer::createInOutBuffers()
 	{
 		throw std::runtime_error("failed to create descriptor pool!");
 	}
+	free(bindings);
+	pipeline->setLayoutDescriptors(1,&descriptorSetLayout);
+	pipeline->recreatePipeline();
 
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -409,65 +362,5 @@ void Computer::createInOutBuffers()
 	{
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
-
-	VkWriteDescriptorSet* descriptorWrite;
-	descriptorWrite = (VkWriteDescriptorSet*) malloc(3*sizeof(VkWriteDescriptorSet));
-		
-	// Input 1
-	VkDescriptorBufferInfo bufferInfoInput1{};
-	bufferInfoInput1.buffer = inputBuffers;
-	bufferInfoInput1.offset = 0;
-	bufferInfoInput1.range = dataLength*4;
-	
-	// Input 2
-	VkDescriptorBufferInfo bufferInfoInput2{};
-	bufferInfoInput2.buffer = inputBuffers;
-	bufferInfoInput2.offset = dataLength*4;
-	bufferInfoInput2.range = dataLength*4;
-	
-	// Output
-	VkDescriptorBufferInfo bufferInfoOutput{};
-	bufferInfoOutput.buffer = outputBuffer;
-	bufferInfoOutput.offset = 0;
-	bufferInfoOutput.range = dataLength*4;
-
-	// UBO
-	descriptorWrite[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrite[0].dstSet = descriptorSet;
-	descriptorWrite[0].dstBinding = 0;
-	descriptorWrite[0].dstArrayElement = 0;
-	descriptorWrite[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	descriptorWrite[0].descriptorCount = 1;
-	descriptorWrite[0].pBufferInfo = &bufferInfoInput1;
-	descriptorWrite[0].pImageInfo = nullptr;
-	descriptorWrite[0].pTexelBufferView = nullptr;
-	descriptorWrite[0].pNext = nullptr;
-
-	descriptorWrite[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrite[1].dstSet = descriptorSet;
-	descriptorWrite[1].dstBinding = 1;
-	descriptorWrite[1].dstArrayElement = 0;
-	descriptorWrite[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	descriptorWrite[1].descriptorCount = 1;
-	descriptorWrite[1].pBufferInfo = &bufferInfoInput2;
-	descriptorWrite[1].pImageInfo = nullptr;
-	descriptorWrite[1].pTexelBufferView = nullptr;
-	descriptorWrite[1].pNext = nullptr;
-
-	descriptorWrite[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrite[2].dstSet = descriptorSet;
-	descriptorWrite[2].dstBinding = 2;
-	descriptorWrite[2].dstArrayElement = 0;
-	descriptorWrite[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	descriptorWrite[2].descriptorCount = 1;
-	descriptorWrite[2].pBufferInfo = &bufferInfoOutput;
-	descriptorWrite[2].pImageInfo = nullptr;
-	descriptorWrite[2].pTexelBufferView = nullptr;
-	descriptorWrite[2].pNext = nullptr;
-
-	vkUpdateDescriptorSets(logicalDevice->getLogicalDevice(), 3, descriptorWrite, 0, nullptr);
-	free(bindings);
-	free(poolSizes);
-	free(descriptorWrite);
-};
+}
 

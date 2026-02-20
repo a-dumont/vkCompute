@@ -5,34 +5,36 @@
 class Computer
 {
 	public:
-		Computer(vkTools::VulkanBase* base, vkTools::LogicalDevice* device);
+		Computer(vkTools::ComputePipeline* pipelineIn);
 		~Computer();
-		void compute();
-		void loadData(uint32_t* in1, uint32_t* in2);
-		void readData(uint32_t* out);
+		void compute(uint32_t dispatchNumber);
+		void createDescriptorSetLayout(uint32_t N);
+		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, 
+						VkMemoryPropertyFlags properties,VkBuffer& buffer, 
+						VkDeviceMemory& bufferMemory);
+		void fillBaseWriteDescriptorSet(uint32_t n, VkWriteDescriptorSet* writeDescriptorSet);
 
 	private:
 		// Vulkan backend
 		vkTools::VulkanBase* vkBase;
 		vkTools::LogicalDevice* logicalDevice;
-		vkTools::ComputePipeline pipeline;
+		vkTools::ComputePipeline* pipeline;
 
 		// Sync objects
 		VkCommandBuffer commandBuffer;
-		VkSemaphore computeDoneSemaphore;
 		VkFence computeFence;
 		void createSyncObjects();
 		void destroySyncObjects();
 
 		// Buffer tools
-		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, 
-						VkMemoryPropertyFlags properties,VkBuffer& buffer, 
-						VkDeviceMemory& bufferMemory);
 		void copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, uint32_t dstOffset);
 		void createCommandBuffer();
-		void recordCommandBuffer(VkCommandBuffer buffer);
+		void recordCommandBuffer(VkCommandBuffer buffer, uint32_t dispatchNumber);
 		VkCommandBuffer beginCommand();
 		void endCommand(VkCommandBuffer commandBuffer);
+
+		// Bool
+		bool descriptorSetLayoutInit = false;
 
 		// Buffers
 		uint32_t dataLength = 256;
