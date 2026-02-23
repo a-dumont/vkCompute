@@ -53,6 +53,18 @@ int main(int argc, char* argv[])
 	// Print device
 	std::cout<<logicalDevice.getPhysicalDeviceInfo()->getProperties().deviceName<<std::endl;
 	
+	// Limits
+	uint32_t maxComputeWorkGroupCountX = logicalDevice.getPhysicalDeviceInfo()->getProperties().limits.maxComputeWorkGroupCount[0];
+	uint32_t maxComputeWorkGroupCountY = logicalDevice.getPhysicalDeviceInfo()->getProperties().limits.maxComputeWorkGroupCount[1];
+	uint32_t maxComputeWorkGroupCountZ = logicalDevice.getPhysicalDeviceInfo()->getProperties().limits.maxComputeWorkGroupCount[2];
+	
+	uint32_t maxComputeWorkGroupSizeX = logicalDevice.getPhysicalDeviceInfo()->getProperties().limits.maxComputeWorkGroupSize[0];
+	uint32_t maxComputeWorkGroupSizeY = logicalDevice.getPhysicalDeviceInfo()->getProperties().limits.maxComputeWorkGroupSize[1];
+	uint32_t maxComputeWorkGroupSizeZ = logicalDevice.getPhysicalDeviceInfo()->getProperties().limits.maxComputeWorkGroupSize[2];
+	std::cout<<"Max workgroups: "<<maxComputeWorkGroupCountX<<" "<<maxComputeWorkGroupCountY<<" "<<maxComputeWorkGroupCountZ<<std::endl;
+	std::cout<<"Workgroups max size: "<<maxComputeWorkGroupSizeX<<" "<<maxComputeWorkGroupSizeY<<" "<<maxComputeWorkGroupSizeZ<<std::endl;
+	std::cout<<"Workgroups max invocation size: "<<logicalDevice.getPhysicalDeviceInfo()->getProperties().limits.maxComputeWorkGroupInvocations<<std::endl;
+	
 	// Pipeline init
 	t1 = std::chrono::steady_clock::now();
 	vkTools::ComputePipeline pipeline = vkTools::ComputePipeline(&logicalDevice, "Shaders/base.spv");
@@ -118,13 +130,14 @@ int main(int argc, char* argv[])
 	// Run the compute shader
 	computer.compute(dataLength);
 
-	
+	/*	
 	// Read mapped memory for the output
 	for(uint32_t i=0;i<dataLength;i++)
 	{
 		std::cout<<i<<": "<<cpuMemory[2*dataLength+i]<<"\n";
 	}
 	std::cout<<std::endl;
+	*/
 
 	// Cleanup
 	vkUnmapMemory(pipeline.getLogicalDevice()->getLogicalDevice(), gpuMemory);
