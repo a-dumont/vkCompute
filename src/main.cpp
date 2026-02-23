@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
 	descriptorWrite[2].pBufferInfo = &bufferInfoInput[2];
 
 	vkUpdateDescriptorSets(pipeline.getLogicalDevice()->getLogicalDevice(), 3, descriptorWrite, 0, nullptr);
-	
+
 	// Load data to gpu through mapped cpu memory
 	for(uint32_t i=0;i<dataLength;i++)
 	{
