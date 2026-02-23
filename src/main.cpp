@@ -7,6 +7,7 @@ std::chrono::time_point<std::chrono::steady_clock> t1, t2;
 vkTools::VersionInfo appVersion = vkTools::VersionInfo();
 const char* requiredLayers[1];
 uint32_t pDevIdx = 0;
+uint32_t dataLength = 256;
 
 int main(int argc, char* argv[])
 {
@@ -16,6 +17,12 @@ int main(int argc, char* argv[])
 		std::stringstream convert{ argv[1] };
 		if (!(convert >> pDevIdx)){}
 	}
+	if(argc > 1)
+	{
+		std::stringstream convert{ argv[2] };
+		if (!(convert >> dataLength)){}
+	}
+
 
 	// App version
 	appVersion.name = "vkCompute";
@@ -67,7 +74,6 @@ int main(int argc, char* argv[])
 	VkBuffer gpuBuffer;
 	VkDeviceMemory gpuMemory;
 	uint32_t* cpuMemory;
-	uint32_t dataLength = 512;
 
 	computer.createBuffer(3*sizeof(uint32_t)*dataLength, 
 					VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
@@ -110,8 +116,9 @@ int main(int argc, char* argv[])
 	}
 
 	// Run the compute shader
-	computer.compute(dataLength/256);
+	computer.compute(dataLength);
 
+	
 	// Read mapped memory for the output
 	for(uint32_t i=0;i<dataLength;i++)
 	{

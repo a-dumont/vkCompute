@@ -46,7 +46,7 @@ void Computer::destroySyncObjects()
 //           |____/|_|  \__,_| \_/\_/   |_|  |_|  \__,_|_| |_| |_|\___|         //
 //////////////////////////////////////////////////////////////////////////////////
 
-void Computer::recordCommandBuffer(VkCommandBuffer buffer, uint32_t dispatchNumber)
+void Computer::recordCommandBuffer(VkCommandBuffer buffer, uint32_t dataLength)
 {
 	
 	VkCommandBufferBeginInfo beginInfo{};
@@ -67,7 +67,10 @@ void Computer::recordCommandBuffer(VkCommandBuffer buffer, uint32_t dispatchNumb
 					pipeline->getLayout(), 0, 1, 
 					&descriptorSet, 0, nullptr);
 
-	vkCmdDispatch(buffer, dispatchNumber, 1, 1);	
+	vkCmdPushConstants(buffer, pipeline->getLayout(), 
+					VK_SHADER_STAGE_COMPUTE_BIT, 0, 
+					sizeof(uint32_t), &dataLength);
+	vkCmdDispatch(buffer, (dataLength/256)+1, 1, 1);	
 
 	r = vkEndCommandBuffer(buffer);
 	if (r != VK_SUCCESS) 
@@ -76,13 +79,13 @@ void Computer::recordCommandBuffer(VkCommandBuffer buffer, uint32_t dispatchNumb
 	}
 }
 
-void Computer::compute(uint32_t dispatchNumber)
+void Computer::compute(uint32_t dataLength)
 {
 	vkWaitForFences(logicalDevice->getLogicalDevice(), 1, &computeFence, VK_TRUE, UINT64_MAX);
 	vkResetFences(logicalDevice->getLogicalDevice(), 1, &computeFence);
 
 	vkResetCommandBuffer(commandBuffer, 0);
-	recordCommandBuffer(commandBuffer, dispatchNumber);
+	recordCommandBuffer(commandBuffer, dataLength);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -349,6 +352,7 @@ void Computer::createDescriptorSetLayout(uint32_t N)
 	}
 	free(bindings);
 	pipeline->setLayoutDescriptors(1,&descriptorSetLayout);
+	pipeline->setPushConstants(VK_SHADER_STAGE_COMPUTE_BIT,sizeof(uint32_t),0);
 	pipeline->recreatePipeline();
 
 	VkDescriptorSetAllocateInfo allocInfo{};
