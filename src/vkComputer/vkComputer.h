@@ -5,7 +5,7 @@
 class Computer
 {
 	public:
-		Computer(vkTools::ComputePipeline* pipelineIn);
+		Computer(vkTools::ComputePipeline* pipelineIn, uint32_t invocationSizeIn);
 		~Computer();
 		void compute(uint32_t dispatchNumber);
 		void createDescriptorSetLayout(uint32_t N);
@@ -19,6 +19,12 @@ class Computer
 		vkTools::VulkanBase* vkBase;
 		vkTools::LogicalDevice* logicalDevice;
 		vkTools::ComputePipeline* pipeline;
+
+		// Workgroup limits
+		uint32_t workGroupMaxCount[3];
+		uint32_t workGroupMaxSize[3];
+		uint32_t maxInvocationSize;
+		uint32_t invocationSize;
 
 		// Sync objects
 		VkCommandBuffer commandBuffer;

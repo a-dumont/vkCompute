@@ -49,6 +49,23 @@ int main(int argc, char* argv[])
 	std::cout<<"Logical device config time: ";
 	std::cout<<std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count();
 	std::cout<<"ms"<<std::endl;
+	
+	// Pipeline init
+	t1 = std::chrono::steady_clock::now();
+	vkTools::ComputePipeline pipeline = vkTools::ComputePipeline(&logicalDevice, "Shaders/1d_uint_vAdd_1024.spv");
+	t2 = std::chrono::steady_clock::now();	
+	std::cout<<"Pipeline config time: ";
+	std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
+	std::cout<<"us"<<std::endl;
+
+	// Computer init
+	t1 = std::chrono::steady_clock::now();
+	Computer computer = Computer(&pipeline,1024);
+	computer.createDescriptorSetLayout(3);
+	t2 = std::chrono::steady_clock::now();	
+	std::cout<<"Computer config time: ";
+	std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
+	std::cout<<"us\n"<<std::endl;
 
 	// Print device
 	std::cout<<logicalDevice.getPhysicalDeviceInfo()->getProperties().deviceName<<std::endl;
@@ -64,23 +81,7 @@ int main(int argc, char* argv[])
 	std::cout<<"Max workgroups: "<<maxComputeWorkGroupCountX<<" "<<maxComputeWorkGroupCountY<<" "<<maxComputeWorkGroupCountZ<<std::endl;
 	std::cout<<"Workgroups max size: "<<maxComputeWorkGroupSizeX<<" "<<maxComputeWorkGroupSizeY<<" "<<maxComputeWorkGroupSizeZ<<std::endl;
 	std::cout<<"Workgroups max invocation size: "<<logicalDevice.getPhysicalDeviceInfo()->getProperties().limits.maxComputeWorkGroupInvocations<<std::endl;
-	
-	// Pipeline init
-	t1 = std::chrono::steady_clock::now();
-	vkTools::ComputePipeline pipeline = vkTools::ComputePipeline(&logicalDevice, "Shaders/base.spv");
-	t2 = std::chrono::steady_clock::now();	
-	std::cout<<"Pipeline config time: ";
-	std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
-	std::cout<<"us"<<std::endl;
-
-	// Computer init
-	t1 = std::chrono::steady_clock::now();
-	Computer computer = Computer(&pipeline);
-	computer.createDescriptorSetLayout(3);
-	t2 = std::chrono::steady_clock::now();	
-	std::cout<<"Computer config time: ";
-	std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
-	std::cout<<"us"<<std::endl;
+	std::cout<<std::endl;
 
 	// Memory allocation
 	VkBuffer gpuBuffer;
@@ -128,7 +129,17 @@ int main(int argc, char* argv[])
 	}
 
 	// Run the compute shader
-	computer.compute(dataLength);
+	//computer.compute(dataLength);
+	t1 = std::chrono::steady_clock::now();
+	for(uint32_t i=0; i<10000;i++)
+	{
+		computer.compute(dataLength);
+	}
+	t2 = std::chrono::steady_clock::now();	
+	std::cout<<"Compute time: ";
+	std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()/10000;
+	std::cout<<"us\n"<<std::endl;
+
 
 	/*	
 	// Read mapped memory for the output
