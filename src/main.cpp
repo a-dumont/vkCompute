@@ -131,13 +131,13 @@ int main(int argc, char* argv[])
 	// Run the compute shader
 	//computer.compute(dataLength);
 	t1 = std::chrono::steady_clock::now();
-	for(uint32_t i=0; i<10000;i++)
+	for(uint32_t i=0; i<1000;i++)
 	{
 		computer.compute(dataLength);
 	}
 	t2 = std::chrono::steady_clock::now();	
 	std::cout<<"Compute time: ";
-	std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()/10000;
+	std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()/1000;
 	std::cout<<"us\n"<<std::endl;
 
 
