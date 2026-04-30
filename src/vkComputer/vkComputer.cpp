@@ -81,7 +81,6 @@ void Computer::recordCommandBuffer(VkCommandBuffer buffer, uint32_t dataLength)
 		throw std::runtime_error("failed to begin recording command buffer!");
 	}
 
-	// Triangles
 	vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->getPipeline());
 	vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, 
 					pipeline->getLayout(), 0, 1, 
@@ -99,13 +98,16 @@ void Computer::recordCommandBuffer(VkCommandBuffer buffer, uint32_t dataLength)
 	}
 }
 
-void Computer::compute(uint32_t dataLength)
+VkCommandBuffer Computer::getCommandBuffer(){return commandBuffer;}
+
+//void Computer::compute(uint32_t dataLength)
+void Computer::compute()
 {
 	vkWaitForFences(logicalDevice->getLogicalDevice(), 1, &computeFence, VK_TRUE, UINT64_MAX);
 	vkResetFences(logicalDevice->getLogicalDevice(), 1, &computeFence);
 
-	vkResetCommandBuffer(commandBuffer, 0);
-	recordCommandBuffer(commandBuffer, dataLength);
+	//vkResetCommandBuffer(commandBuffer, 0);
+	//recordCommandBuffer(commandBuffer, dataLength);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -197,7 +199,7 @@ VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 }
 
 void Computer::copyBuffer
-(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, uint32_t dstOffset)
+(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, uint32_t dstOffset, uint32_t srcOffset, VkQueue queue)
 {
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -215,7 +217,7 @@ void Computer::copyBuffer
 	vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
 	VkBufferCopy copyRegion{};
-	copyRegion.srcOffset = 0; // Optional
+	copyRegion.srcOffset = srcOffset; // Optional
 	copyRegion.dstOffset = dstOffset; // Optional
 	copyRegion.size = size;
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
@@ -227,8 +229,11 @@ void Computer::copyBuffer
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 	
-	vkQueueSubmit(logicalDevice->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(logicalDevice->getGraphicsQueue());
+	//vkQueueSubmit(logicalDevice->getTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+	//vkQueueWaitIdle(logicalDevice->getTransferQueue());
+	
+	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(queue);
 
 	vkFreeCommandBuffers(logicalDevice->getLogicalDevice(), 
 					logicalDevice->getCommandPool(), 1, &commandBuffer);
